@@ -91,11 +91,8 @@ system:
     
 primitive:
   - name: lynx_quadruped
-    # For local development we point straight at the repo on disk; switch back
-    # to `url:`/`branch:` once the repo is pushed to GitHub.
-    # url: https://github.com/chenzk6/primitive-lynx_quadruped.git
-    # branch: main
-    path: ./primitives/primitive-lynx_quadruped
+    url: https://github.com/syswonder/primitive-deep_robotics-lynx_s10-quadruped-rbnx
+    branch: main
     config:
       motion_state_topic: /MOTION_STATE
       motion_info_topic: /MOTION_INFO

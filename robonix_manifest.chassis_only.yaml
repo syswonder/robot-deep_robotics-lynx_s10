@@ -38,7 +38,8 @@ system:
 
 primitive:
   - name: lynx_quadruped
-    path: ./primitives/primitive-lynx_quadruped
+    url: https://github.com/syswonder/primitive-deep_robotics-lynx_s10-quadruped-rbnx
+    branch: main
     config:
       motion_state_topic: /MOTION_STATE
       motion_info_topic: /MOTION_INFO
