@@ -36,7 +36,7 @@ def level_settings(level):
     return QUALITY_ANCHORS[-1][1], QUALITY_ANCHORS[-1][2]
 
 
-_ROS_READY = False
+_ROS_LOCK = threading.Lock()
 
 
 class Camera:
@@ -176,20 +176,22 @@ class Camera:
             import numpy as np
             import cv2
             import rclpy
-            from rclpy.node import Node
+            from rclpy.executors import SingleThreadedExecutor
             from sensor_msgs.msg import Image
+            from rclpy.qos import qos_profile_sensor_data
         except Exception as error:          # ROS not sourced in this process
             self.error = 'ROS unavailable: %s' % error
             return
-        global _ROS_READY
-        if not _ROS_READY:
-            rclpy.init(args=None)
-            _ROS_READY = True
-        # One node per camera: rclpy executors are not shared across threads.
-        # Node names must be ASCII identifiers, and the labels here are Chinese.
+        with _ROS_LOCK:
+            if not rclpy.ok():
+                rclpy.init(args=None)
         label = ''.join(ch if ch.isascii() and (ch.isalnum() or ch == '_') else '_'
                         for ch in self.name).strip('_') or 'camera'
         node = rclpy.create_node('camera_view_%s_%d' % (label, id(self) % 100000))
+        # Separate executors as well as nodes: rclpy.spin_once without one
+        # uses a shared global executor and races concurrent RGB/depth views.
+        executor = SingleThreadedExecutor()
+        executor.add_node(node)
         last = [0.0]
 
         def on_image(msg):
@@ -220,8 +222,9 @@ class Camera:
                 target = int(self.settings.get('width', 480))
                 if width > target:
                     image = cv2.resize(image, (target, max(1, int(height * target / width))))
-                ok, buffer = cv2.imencode('.jpg', image, [
-                    int(cv2.IMWRITE_JPEG_QUALITY), int(self.settings.get('jpeg_quality', 14))])
+                # ffmpeg qscale decreases with quality; OpenCV JPEG quality increases.
+                quality = max(10, min(95, 100-2*int(self.settings.get('jpeg_quality', 14))))
+                ok, buffer = cv2.imencode('.jpg', image, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
                 if not ok:
                     self.error = 'encode failed'
                     return
@@ -233,11 +236,12 @@ class Camera:
             except Exception as error:
                 self.error = str(error)
 
-        subscription = node.create_subscription(Image, self.url, on_image, 5)
+        subscription = node.create_subscription(Image, self.url, on_image, qos_profile_sensor_data)
         try:
             while not (self.idle() or self.restart):
-                rclpy.spin_once(node, timeout_sec=0.2)
+                executor.spin_once(timeout_sec=0.2)
         finally:
+            executor.shutdown()
             node.destroy_subscription(subscription)
             node.destroy_node()
         with self.lock:

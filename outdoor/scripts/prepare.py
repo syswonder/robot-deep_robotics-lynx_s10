@@ -61,6 +61,7 @@ def prepare(root=ROOT):
     ground = root / "config/ground.local.json"
     if not ground.exists():
         shutil.copy2(root / "config/ground.local.example.json", ground)
+        ground.chmod(0o600)
     (root / "run").mkdir(exist_ok=True)
     print(
         "Dependencies prepared. Configure GNSS and source scripts/environment.sh before rbnx build."

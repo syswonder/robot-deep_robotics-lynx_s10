@@ -32,3 +32,11 @@ cp tools/camera_view/lynx-camera.service ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now lynx-camera.service
 ```
+
+## Orbbec 两路预览
+
+配置同时提供“深度彩色”和“深度图”。两路仅订阅导航域中的 ROS Image，不另开 USB 设备，不发送底盘命令。深度伪彩显示 0.2–3 m，零深度显示黑色；预览可见不代表该相机已通过导航障碍检测校验。
+
+systemd 单元已设置 ROS 环境与 domain 80。手动运行时，先 source `/opt/ros/humble/setup.bash` 并显式设置 `ROS_DOMAIN_ID=80`，再启动查看器。导航栈中的相机原语需运行并发布 RGB/深度话题；仅启动这个网页不能让相机出图。
+
+RGB/深度各使用独立 ROS executor，避免多个 HTTP 请求并发订阅时争用全局 executor。图像显示质量会把 ffmpeg 的 qscale 转换成 OpenCV 的 JPEG quality，两个标尺的高低方向相反。

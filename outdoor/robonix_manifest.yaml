@@ -55,6 +55,16 @@ primitive:
       port: /dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0
       baud: 115200
     device_profile: inertial
+- name: orbbec_camera
+  path: ${OUTDOOR_DEPLOY_ROOT}/packages/primitive-orbbec-camera
+  config:
+    camera_name: camera_gemini330
+    camera_model: gemini330_series
+    color_profile: 1280x720x30
+    depth_profile: 1280x720x30
+    depth_registration: true
+    enable_point_cloud: false
+    enable_imu: false
 service:
 - name: localization_outdoor
   path: ${OUTDOOR_DEPLOY_ROOT}/packages/service-localization-outdoor-rbnx
@@ -163,26 +173,28 @@ service:
       localization: localization_outdoor
       chassis: lynx_chassis
       imu: wit_imu
+      # lynx_camera also claims primitive/camera/rgb; name the RGBD source.
+      camera: orbbec_camera
     topic_remap:
       tf: /outdoor/tf
       tf_static: /tf_static
       chassis: /outdoor/chassis_status
     gait_switching_enabled: true
     velocity_output_topic: /robonix/nomotion/outdoor_cmd_vel
-    global_grid:
-      origin:
-      - -40.0
-      - -40.0
-      width: 80.0
-      height: 80.0
-      resolution: 0.1
-      rolling: true
     action_wait_s: 120.0
     run_dir: ${OUTDOOR_DEPLOY_ROOT}/run/navigation
     http_port: 19985
     policy:
       lidar_enabled: true
+      # Lidar-only field profile; RGB/depth preview remains available.
+      # Enabling depth for navigation requires a separate geometry check.
       camera_enabled: false
+      camera_frame_confirmed: true
+      camera_frame: camera_gemini330_link
+      # Provisional mount from the indoor plane fit; forward/lateral offsets
+      # still need physical measurement before camera navigation commissioning.
+      camera_mount_xyz_m: [0.0, 0.0, -0.19]
+      camera_mount_rpy_deg: [0.0, 0.0, 0.0]
       motion_enabled: false
       calibrated: true
       antenna_offset_confirmed: true
@@ -194,7 +206,6 @@ service:
       stopped_angular_rps: 0.06
       stop_hold_s: 1.0
       navigation_recovery_timeout_s: 15.0
-      transform_tolerance_s: 3.0
       fixed_arrival_m: 3.0
       float_arrival_m: 3.0
       gait_switch_timeout_s: 5.0

@@ -35,3 +35,12 @@ Scene 电量显示复用独立工具的电量服务（`camera_battery_port: 8080
 导航新分支必须在 `config/ground.local.json` 填入本机地面 z；该文件被 Git 和工作区同步脚本排除，无有效值会拒绝初始化。模板 `ground.local.example.json` 不带数值默认。雷达/地形与相机地面检测统一使用该值，不在清单分别存两份。
 
 本轮使用 `feat/vision-multisensor-navigation`，准备仅雷达＋RTK/IMU＋周期方向导航；相机几何和语义导航关闭、`can_climb_stairs=false`，原 RGB 预览可保留。首次测试为平地选点、绕障、取消和到点停车，不进行上下楼。
+
+
+## 现场绕法清理后的配置
+
+Nav2 的地图尺寸、分辨率、控制器、速度和足迹只在 `config/outdoor_nav2.yaml` 配置，不再叠加 manifest 的 `global_grid` 覆盖。普通导航使用有序短窗口，周期模式使用局部 odom 快照；终点远于窗口并不要求扩大感知图。
+
+两份 profile 除运动/执行许可与输出话题外保持相同。底盘准备检查已恢复：常规步态可以请求导航步态，速度仍要等待实际步态确认；不再需要 `require_chassis_ready=false`。terrain/decision_cycle 可以独立或同时开启，不把关闭它们当作修复。地形攀爬仍未启用。
+
+室外默认只用雷达避障，相机预览不受此开关影响。临时改动的保留/撤销依据与未证实的现场诊断记录在 OutdoorNav 工作区 `docs/FIELD_CHANGES_20261120.md`。开发验证使用独立 `outdoorNav-indoor-20261120` 目录，不自动恢复真实底盘运动。

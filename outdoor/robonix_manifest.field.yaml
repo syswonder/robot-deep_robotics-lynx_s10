@@ -189,24 +189,18 @@ service:
       chassis: /outdoor/chassis_status
     gait_switching_enabled: true
     velocity_output_topic: /cmd_vel
-    global_grid:
-      origin:
-      - -40.0
-      - -40.0
-      width: 80.0
-      height: 80.0
-      resolution: 0.1
-      rolling: true
     action_wait_s: 120.0
     run_dir: ${OUTDOOR_DEPLOY_ROOT}/run/navigation
     http_port: 19985
     policy:
       lidar_enabled: true
-      camera_enabled: true
+      # Lidar-only field profile; RGB/depth preview remains available.
+      # Enabling depth for navigation requires a separate geometry check.
+      camera_enabled: false
       camera_frame_confirmed: true
       camera_frame: camera_gemini330_link
-      # Measured: the camera sits 0.23 m above the floor while base_link is
-      # 0.42 m above it, and it looks straight ahead.
+      # Provisional mount from the indoor plane fit; forward/lateral offsets
+      # still need physical measurement before camera navigation commissioning.
       camera_mount_xyz_m: [0.0, 0.0, -0.19]
       camera_mount_rpy_deg: [0.0, 0.0, 0.0]
       motion_enabled: true
@@ -220,7 +214,6 @@ service:
       stopped_angular_rps: 0.06
       stop_hold_s: 1.0
       navigation_recovery_timeout_s: 15.0
-      transform_tolerance_s: 3.0
       fixed_arrival_m: 3.0
       float_arrival_m: 3.0
       gait_switch_timeout_s: 5.0

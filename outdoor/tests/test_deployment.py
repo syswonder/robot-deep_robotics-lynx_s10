@@ -64,6 +64,7 @@ def test_profiles_isolate_motion_and_share_the_same_dependencies():
             "localization": "localization_outdoor",
             "chassis": "lynx_chassis",
             "imu": "wit_imu",
+            "camera": "orbbec_camera",
         }
         assert items["localization_outdoor"]["config"]["estimator_mode"] == "eskf"
         assert items["wit_imu"]["config"]["device_profile"] == "inertial"
@@ -72,7 +73,7 @@ def test_profiles_isolate_motion_and_share_the_same_dependencies():
                    for c in camera["channels"])
         scene = items["scene"]["config"]
         assert scene["camera_provider_id"] == "lynx_camera"
-        assert not scene.get("camera_viewer_port")
+        assert scene.get("camera_viewer_port") == 8080
         if scene.get("observations"):
             assert any(o["kind"] == "rgb" and o["provider_id"] == "lynx_camera"
                        and o["contract"] == "robonix/primitive/camera/rgb"
@@ -137,3 +138,17 @@ def test_prepare_refuses_dirty_dependencies_before_updating_anything(tmp_path):
         prepare.prepare(tmp_path)
     assert not (tmp_path / "packages/missing").exists()
     assert (package / "local.txt").read_text() == "keep this edit"
+
+
+def test_enabled_external_packages_are_locked_to_exact_revisions():
+    import re
+    sources = json.loads((ROOT / 'sources.json').read_text())
+    pins = {item['path']: item for item in sources}
+    assert len(pins) == len(sources)
+    assert all(re.fullmatch('[a-f0-9]{40}', item['revision']) for item in sources)
+    assert 'packages/primitive-orbbec-camera' in pins
+    prefix = '${OUTDOOR_DEPLOY_ROOT}/'
+    for filename in ('robonix_manifest.yaml', 'robonix_manifest.field.yaml'):
+        for item in entries(load(filename)).values():
+            if item['path'].startswith(prefix + 'packages/'):
+                assert item['path'][len(prefix):] in pins
