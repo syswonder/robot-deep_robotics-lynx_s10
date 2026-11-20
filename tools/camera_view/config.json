@@ -9,6 +9,16 @@
     "front": "rtsp://10.21.33.103:8554/video4",
     "back": "rtsp://10.21.33.103:8554/video0",
     "left": "rtsp://10.21.33.103:8554/video2",
-    "right": "rtsp://10.21.33.103:8554/video6"
+    "right": "rtsp://10.21.33.103:8554/video6",
+    "深度彩色": {
+      "type": "ros",
+      "topic": "/camera_gemini330/color/image_raw",
+      "mode": "rgb"
+    },
+    "深度图": {
+      "type": "ros",
+      "topic": "/camera_gemini330/depth/image_raw",
+      "mode": "depth"
+    }
   }
 }

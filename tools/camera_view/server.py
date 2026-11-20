@@ -36,9 +36,16 @@ def level_settings(level):
     return QUALITY_ANCHORS[-1][1], QUALITY_ANCHORS[-1][2]
 
 
+_ROS_READY = False
+
+
 class Camera:
-    def __init__(self, name, url, settings):
-        self.name, self.url = name, url
+    def __init__(self, name, source, settings):
+        self.name = name
+        # A plain string is an RTSP URL; a mapping selects a ROS image topic.
+        self.kind = 'ros' if isinstance(source, dict) else 'rtsp'
+        self.url = source.get('topic') if self.kind == 'ros' else source
+        self.mode = (source.get('mode') if self.kind == 'ros' else None) or 'rgb'
         self.settings = dict(settings, width=settings.get('width', 480),
                              jpeg_quality=settings.get('jpeg_quality', 14),
                              fps=settings.get('fps', 1.0))
@@ -54,6 +61,11 @@ class Camera:
         self.thread = None
 
     def probe(self):
+        if self.kind == 'ros':
+            # The topic may vanish with the navigation stack; keep the button
+            # usable so a later view can subscribe and pick the stream up.
+            self.available = True
+            return self.available
         import subprocess
         command = ['ffprobe', '-v', 'error', '-rtsp_transport', 'tcp',
                    '-select_streams', 'v:0', '-show_entries', 'stream=width,height',
@@ -109,6 +121,9 @@ class Camera:
             self.frame_at = 0.0
 
     def _run(self):
+        if self.kind == 'ros':
+            self._run_ros()
+            return
         import subprocess
         while not (self.idle() or self.restart):
             self.error = None
@@ -155,13 +170,88 @@ class Camera:
         self.thread = None
 
 
+    def _run_ros(self):
+        """Rasterize one ROS image topic into the same JPEG frame slot as ffmpeg."""
+        try:
+            import numpy as np
+            import cv2
+            import rclpy
+            from rclpy.node import Node
+            from sensor_msgs.msg import Image
+        except Exception as error:          # ROS not sourced in this process
+            self.error = 'ROS unavailable: %s' % error
+            return
+        global _ROS_READY
+        if not _ROS_READY:
+            rclpy.init(args=None)
+            _ROS_READY = True
+        # One node per camera: rclpy executors are not shared across threads.
+        # Node names must be ASCII identifiers, and the labels here are Chinese.
+        label = ''.join(ch if ch.isascii() and (ch.isalnum() or ch == '_') else '_'
+                        for ch in self.name).strip('_') or 'camera'
+        node = rclpy.create_node('camera_view_%s_%d' % (label, id(self) % 100000))
+        last = [0.0]
+
+        def on_image(msg):
+            now = time.monotonic()
+            period = 1.0 / max(0.05, float(self.settings.get('fps', 1.0)))
+            if now - last[0] < period:
+                return
+            last[0] = now
+            try:
+                if self.mode == 'depth':
+                    if msg.encoding != '16UC1':
+                        self.error = 'depth encoding %s' % msg.encoding
+                        return
+                    depth = np.frombuffer(bytes(msg.data), dtype=np.uint16).reshape(
+                        msg.height, msg.width).astype(np.float32) / 1000.0
+                    grey = np.clip((depth - 0.2) / 2.8, 0.0, 1.0) * 255.0
+                    image = cv2.applyColorMap(grey.astype(np.uint8), cv2.COLORMAP_TURBO)
+                    image[depth <= 0] = (0, 0, 0)
+                else:
+                    if msg.encoding not in ('rgb8', 'bgr8'):
+                        self.error = 'colour encoding %s' % msg.encoding
+                        return
+                    image = np.frombuffer(bytes(msg.data), dtype=np.uint8).reshape(
+                        msg.height, msg.width, 3)
+                    image = (cv2.cvtColor(image, cv2.COLOR_RGB2BGR) if msg.encoding == 'rgb8'
+                             else image.copy())
+                height, width = image.shape[:2]
+                target = int(self.settings.get('width', 480))
+                if width > target:
+                    image = cv2.resize(image, (target, max(1, int(height * target / width))))
+                ok, buffer = cv2.imencode('.jpg', image, [
+                    int(cv2.IMWRITE_JPEG_QUALITY), int(self.settings.get('jpeg_quality', 14))])
+                if not ok:
+                    self.error = 'encode failed'
+                    return
+                with self.lock:
+                    self.frame, self.frame_at = buffer.tobytes(), time.monotonic()
+                    self.frame_wall = time.time()
+                self.available = True
+                self.error = None
+            except Exception as error:
+                self.error = str(error)
+
+        subscription = node.create_subscription(Image, self.url, on_image, 5)
+        try:
+            while not (self.idle() or self.restart):
+                rclpy.spin_once(node, timeout_sec=0.2)
+        finally:
+            node.destroy_subscription(subscription)
+            node.destroy_node()
+        with self.lock:
+            self.frame = None
+        self.thread = None
+
+
 class Service:
     def __init__(self, config):
         self.config = config
         self.battery = BatteryMonitor(config.get('battery_host', '10.21.33.103'),
                                       config.get('battery_port', 30004))
-        self.cameras = {name: Camera(name, url, config)
-                        for name, url in config['cameras'].items()}
+        self.cameras = {name: Camera(name, source, config)
+                        for name, source in config['cameras'].items()}
         current = self.settings()
         for camera in self.cameras.values():
             camera.settings.update({'width': current['width'],
@@ -448,7 +538,8 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(200, frame, 'image/jpeg', extra=(
                         ('X-Frame-Time', '%.3f' % wall),
                         ('X-Frame-Age-Ms', age_ms),
-                        ('X-Camera', camera.name)))
+                        # HTTP header values must be latin-1; the labels are Chinese.
+                        ('X-Camera', ''.join(ch if ch.isascii() else '_' for ch in camera.name))))
                     return
                 time.sleep(0.1)
             self._send(504, (camera.error or 'no frame yet').encode(), 'text/plain'); return

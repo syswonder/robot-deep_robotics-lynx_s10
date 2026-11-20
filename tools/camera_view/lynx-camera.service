@@ -1,11 +1,13 @@
 [Unit]
-Description=Lynx camera web view (1 fps JPEG over SSH tunnel)
+Description=Lynx camera web view (RTSP + depth camera, JPEG over SSH tunnel)
 After=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/robot-deep_robotics-lynx_s10
-ExecStart=/usr/bin/python3 %h/robot-deep_robotics-lynx_s10/tools/camera_view/server.py --config %h/robot-deep_robotics-lynx_s10/tools/camera_view/config.json
+WorkingDirectory=%h/outdoorNav-workspace/robot-deep_robotics-lynx_s10
+# The depth entry subscribes to ROS topics, so the service needs a sourced
+# ROS environment on the outdoor stack's domain; RTSP entries ignore it.
+ExecStart=/bin/bash -c "set +u; export ROS_DOMAIN_ID=80 ROS_LOCALHOST_ONLY=0 RMW_IMPLEMENTATION=rmw_fastrtps_cpp; source /opt/ros/humble/setup.bash; exec /usr/bin/python3 %h/outdoorNav-workspace/robot-deep_robotics-lynx_s10/tools/camera_view/server.py --config %h/outdoorNav-workspace/robot-deep_robotics-lynx_s10/tools/camera_view/config.json"
 Restart=always
 RestartSec=5
 
