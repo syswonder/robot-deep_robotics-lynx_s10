@@ -174,8 +174,7 @@ service:
       slope_filter_enabled: false
       can_climb_stairs: false
     decision_cycle:
-      enabled: true
-      period_s: 2.0
+      enabled: false # Formal deployment uses the ordinary route executor.
     provider_ids:
       cloud: lynx_lidar
       localization: localization_outdoor
