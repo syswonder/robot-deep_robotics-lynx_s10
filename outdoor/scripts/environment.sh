@@ -13,7 +13,7 @@ source "$RSLIDAR_WS/install/setup.bash" || return 1
 export ROBONIX_HOME="$OUTDOOR_DEPLOY_ROOT/.robonix"
 export ROBONIX_SOURCE_PATH="$OUTDOOR_DEPLOY_ROOT/framework/robonix"
 export OUTDOOR_DEPLOY_ROOT
-export PATH="$OUTDOOR_DEPLOY_ROOT/.venv/bin:$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
+export PATH="$OUTDOOR_DEPLOY_ROOT/bin:$OUTDOOR_DEPLOY_ROOT/.venv/bin:$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
 export PYTHONPATH="$OUTDOOR_DEPLOY_ROOT/packages/service-map-outdoor-rbnx:$OUTDOOR_DEPLOY_ROOT/packages/service-navigation-outdoor-rbnx:$OUTDOOR_DEPLOY_ROOT/framework/robonix/system/scene:$OUTDOOR_DEPLOY_ROOT/framework/robonix/pylib/robonix-api:${PYTHONPATH:-}"
 export ROS_DOMAIN_ID=80 ROS_LOCALHOST_ONLY=0 RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 export ROBONIX_ATLAS=127.0.0.1:51551

@@ -63,6 +63,7 @@ def test_profiles_isolate_motion_and_share_the_same_dependencies():
             "cloud": "lynx_lidar",
             "localization": "localization_outdoor",
             "chassis": "lynx_chassis",
+            "imu": "wit_imu",
         }
         assert items["localization_outdoor"]["config"]["estimator_mode"] == "eskf"
         assert items["wit_imu"]["config"]["device_profile"] == "inertial"
@@ -80,12 +81,14 @@ def test_profiles_isolate_motion_and_share_the_same_dependencies():
         assert "/ODOM" not in json.dumps(manifest)
 
 
-def test_profiles_pass_the_actual_service_configuration_validators():
+def test_profiles_pass_the_actual_service_configuration_validators(tmp_path):
     from localization_outdoor.configuration import validate as localization_config
     from outdoor_nav.configuration import validate as navigation_config
     from wit_imu.driver import parse_config as imu_config
 
     packages = Path(os.environ["OUTDOOR_PACKAGES_ROOT"])
+    ground = tmp_path / "ground.local.json"
+    ground.write_text('{"ground_z_m": -0.25}')  # Synthetic test calibration, not a machine value.
     for filename in ("robonix_manifest.yaml", "robonix_manifest.field.yaml"):
         items = entries(load(filename))
         assert (
@@ -99,6 +102,7 @@ def test_profiles_pass_the_actual_service_configuration_validators():
         nav["params_file"] = str(
             packages / "service-navigation-outdoor-rbnx/config/nav2_params.example.yml"
         )
+        nav["ground_height_file"] = str(ground)
         navigation_config(nav)
 
 

@@ -29,3 +29,9 @@ Scene 电量显示复用独立工具的电量服务（`camera_battery_port: 8080
 
 统一文档位于 outdoorNav 工作区的 `docs/ARCHITECTURE.md`、`docs/DEPLOYMENT.md` 和
 `docs/VALIDATION.md`。地图及采集记录保留在 `data/outdoor_mapping`，日志在 `run`。
+
+## 本机地面基准与仅雷达准备
+
+导航新分支必须在 `config/ground.local.json` 填入本机地面 z；该文件被 Git 和工作区同步脚本排除，无有效值会拒绝初始化。模板 `ground.local.example.json` 不带数值默认。雷达/地形与相机地面检测统一使用该值，不在清单分别存两份。
+
+本轮使用 `feat/vision-multisensor-navigation`，准备仅雷达＋RTK/IMU＋周期方向导航；相机几何和语义导航关闭、`can_climb_stairs=false`，原 RGB 预览可保留。首次测试为平地选点、绕障、取消和到点停车，不进行上下楼。

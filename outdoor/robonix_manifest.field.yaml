@@ -55,6 +55,16 @@ primitive:
       port: /dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0
       baud: 115200
     device_profile: inertial
+- name: orbbec_camera
+  path: ${OUTDOOR_DEPLOY_ROOT}/packages/primitive-orbbec-camera
+  config:
+    camera_name: camera_gemini330
+    camera_model: gemini330_series
+    color_profile: 1280x720x30
+    depth_profile: 1280x720x30
+    depth_registration: true
+    enable_point_cloud: false
+    enable_imu: false
 service:
 - name: localization_outdoor
   path: ${OUTDOOR_DEPLOY_ROOT}/packages/service-localization-outdoor-rbnx
@@ -102,6 +112,7 @@ service:
     http_port: 19980
     worker_python: ${OUTDOOR_DEPLOY_ROOT}/.venv/bin/python
     require_map_reference: true
+    publish_imu_tf: true
     estimator_mode: eskf
     sensor_timeout_s: 3.0
     fusion:
@@ -132,11 +143,11 @@ service:
     web_host: 127.0.0.1
     web_port: 50108
     camera_battery_port: 8080
+    camera_viewer_port: 8080
     web_viewer: 'off'
     map_providers:
       outdoor: outdoor_mapping
     outdoor_navigation:
-      navigation_http_url: http://127.0.0.1:19985
       run_dir: ${OUTDOOR_DEPLOY_ROOT}/run/scene_requests
       policy:
         fixed_arrival_m: 3.0
@@ -156,11 +167,22 @@ service:
 - name: outdoor_execution
   path: ${OUTDOOR_DEPLOY_ROOT}/packages/service-navigation-outdoor-rbnx
   config:
-    params_file: ${OUTDOOR_DEPLOY_ROOT}/packages/service-navigation-outdoor-rbnx/config/nav2_params.example.yml
+    params_file: ${OUTDOOR_DEPLOY_ROOT}/config/outdoor_nav2.yaml
+    ground_height_file: ${OUTDOOR_DEPLOY_ROOT}/config/ground.local.json
+    terrain:
+      enabled: true
+      slope_filter_enabled: false
+      can_climb_stairs: false
+    decision_cycle:
+      enabled: true
+      period_s: 2.0
     provider_ids:
       cloud: lynx_lidar
       localization: localization_outdoor
       chassis: lynx_chassis
+      imu: wit_imu
+      # lynx_camera also claims primitive/camera/rgb; name the RGBD source.
+      camera: orbbec_camera
     topic_remap:
       tf: /outdoor/tf
       tf_static: /tf_static
@@ -179,6 +201,14 @@ service:
     run_dir: ${OUTDOOR_DEPLOY_ROOT}/run/navigation
     http_port: 19985
     policy:
+      lidar_enabled: true
+      camera_enabled: true
+      camera_frame_confirmed: true
+      camera_frame: camera_gemini330_link
+      # Measured: the camera sits 0.23 m above the floor while base_link is
+      # 0.42 m above it, and it looks straight ahead.
+      camera_mount_xyz_m: [0.0, 0.0, -0.19]
+      camera_mount_rpy_deg: [0.0, 0.0, 0.0]
       motion_enabled: true
       calibrated: true
       antenna_offset_confirmed: true
@@ -186,20 +216,12 @@ service:
       cloud_frame_confirmed: true
       feedback_confirmed: true
       require_chassis_ready: true
-      footprint_radius_m: 0.6
-      cloud_min_height_m: -0.3
-      cloud_max_height_m: 0.7
-      scan_range_min_m: 0.5
-      max_speed_mps: 0.4
       stopped_linear_mps: 0.10
       stopped_angular_rps: 0.06
       stop_hold_s: 1.0
       navigation_recovery_timeout_s: 15.0
-      pose_timeout_s: 3.0
-      localization_timeout_s: 3.0
       transform_tolerance_s: 3.0
       fixed_arrival_m: 3.0
       float_arrival_m: 3.0
       gait_switch_timeout_s: 5.0
-      gait_prepare_timeout_s: 15.0
     worker_python: ${OUTDOOR_DEPLOY_ROOT}/.venv/bin/python

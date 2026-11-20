@@ -13,3 +13,7 @@
 /config/gnss.base.yaml
 __pycache__/
 *.pyc
+
+/config/ground.local.json
+
+/bin/

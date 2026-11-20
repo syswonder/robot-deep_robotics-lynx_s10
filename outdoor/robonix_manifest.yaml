@@ -102,6 +102,7 @@ service:
     http_port: 19980
     worker_python: ${OUTDOOR_DEPLOY_ROOT}/.venv/bin/python
     require_map_reference: true
+    publish_imu_tf: true
     estimator_mode: eskf
     sensor_timeout_s: 3.0
     fusion:
@@ -132,11 +133,11 @@ service:
     web_host: 127.0.0.1
     web_port: 50108
     camera_battery_port: 8080
+    camera_viewer_port: 8080
     web_viewer: 'off'
     map_providers:
       outdoor: outdoor_mapping
     outdoor_navigation:
-      navigation_http_url: http://127.0.0.1:19985
       run_dir: ${OUTDOOR_DEPLOY_ROOT}/run/scene_requests
       policy:
         fixed_arrival_m: 3.0
@@ -148,11 +149,20 @@ service:
 - name: outdoor_execution
   path: ${OUTDOOR_DEPLOY_ROOT}/packages/service-navigation-outdoor-rbnx
   config:
-    params_file: ${OUTDOOR_DEPLOY_ROOT}/packages/service-navigation-outdoor-rbnx/config/nav2_params.example.yml
+    params_file: ${OUTDOOR_DEPLOY_ROOT}/config/outdoor_nav2.yaml
+    ground_height_file: ${OUTDOOR_DEPLOY_ROOT}/config/ground.local.json
+    terrain:
+      enabled: true
+      slope_filter_enabled: false
+      can_climb_stairs: false
+    decision_cycle:
+      enabled: true
+      period_s: 2.0
     provider_ids:
       cloud: lynx_lidar
       localization: localization_outdoor
       chassis: lynx_chassis
+      imu: wit_imu
     topic_remap:
       tf: /outdoor/tf
       tf_static: /tf_static
@@ -171,6 +181,8 @@ service:
     run_dir: ${OUTDOOR_DEPLOY_ROOT}/run/navigation
     http_port: 19985
     policy:
+      lidar_enabled: true
+      camera_enabled: false
       motion_enabled: false
       calibrated: true
       antenna_offset_confirmed: true
@@ -178,21 +190,13 @@ service:
       cloud_frame_confirmed: true
       feedback_confirmed: true
       require_chassis_ready: true
-      footprint_radius_m: 0.6
-      cloud_min_height_m: -0.3
-      cloud_max_height_m: 0.7
-      scan_range_min_m: 0.5
-      max_speed_mps: 0.4
       stopped_linear_mps: 0.10
       stopped_angular_rps: 0.06
       stop_hold_s: 1.0
       navigation_recovery_timeout_s: 15.0
-      pose_timeout_s: 3.0
-      localization_timeout_s: 3.0
       transform_tolerance_s: 3.0
       fixed_arrival_m: 3.0
       float_arrival_m: 3.0
       gait_switch_timeout_s: 5.0
-      gait_prepare_timeout_s: 15.0
     worker_python: ${OUTDOOR_DEPLOY_ROOT}/.venv/bin/python
     gait_output_topic: /robonix/nomotion/outdoor_gait
