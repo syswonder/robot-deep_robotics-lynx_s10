@@ -1,6 +1,20 @@
 #!/usr/bin/env bash
 # Source before native rbnx build/boot; scope the framework to this deployment.
 OUTDOOR_DEPLOY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+case "${OUTDOOR_MODE:-check}" in
+  check)
+    export OUTDOOR_HARDWARE_STATUS=enabled OUTDOOR_PREVIEW=false OUTDOOR_DISCOVER=true
+    export OUTDOOR_PILOT_STATUS="${OUTDOOR_PILOT_STATUS:-disabled}"
+    ;;
+  preview)
+    export OUTDOOR_HARDWARE_STATUS=disabled OUTDOOR_PREVIEW=true OUTDOOR_DISCOVER=false
+    export OUTDOOR_PILOT_STATUS=enabled
+    ;;
+  *)
+    printf 'OUTDOOR_MODE must be check or preview\n' >&2
+    return 1
+    ;;
+esac
 case $- in *u*) _outdoor_had_nounset=1;; *) _outdoor_had_nounset=0;; esac
 unset PYTHONPATH AMENT_PREFIX_PATH CMAKE_PREFIX_PATH COLCON_PREFIX_PATH
 set +u

@@ -17,7 +17,11 @@ flock -n run/boot.lock rbnx boot -f robonix_manifest.yaml --no-update-check -v
 运动模式使用 `robonix_manifest.field.yaml`，先停止检查模式，两者共用同一个启动锁。
 网页在机器人回环地址 `http://127.0.0.1:50108/outdoor`。
 
-两份清单均启动山猫前摄像头（video4），Scene 的 `/cam` 直接显示原语画面，
+只规划时，在加载环境前设置 `OUTDOOR_MODE=preview`，仍使用 `robonix_manifest.yaml`。
+该模式不启动硬件和执行服务；Robonix 随清单启动 Pilot，从环境读取
+`ROBONIX_VLM_UPSTREAM`、`ROBONIX_VLM_MODEL` 和 `ROBONIX_VLM_API_KEY`。
+
+检查和运动模式均启动山猫前摄像头（video4），Scene 的 `/cam` 直接显示原语画面，
 不依赖 `tools/camera_view` 网页。需安装 `ffmpeg`，Python 环境需有 NumPy 和 Pillow。
 相机断流时后台继续重连，不阻止定位、地图和 Scene 启动。
 独立工具网页仍可用于切换前后左右相机。

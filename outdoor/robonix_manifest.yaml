@@ -1,14 +1,25 @@
 # Source scripts/environment.sh before using rbnx.
 manifestVersion: 1
 name: lynx-outdoor-check
+env:
+  ROBONIX_PILOT_SOUL: ${OUTDOOR_DEPLOY_ROOT}/config/preview-soul.md
 system:
   atlas:
     listen: 127.0.0.1:51551
+  executor:
+    listen: 127.0.0.1:51561
+  pilot:
+    status: ${OUTDOOR_PILOT_STATUS}
+    listen: 127.0.0.1:51571
+    vlm:
+      upstream: ${ROBONIX_VLM_UPSTREAM}
+      model: ${ROBONIX_VLM_MODEL}
   soma:
     listen: 127.0.0.1:51591
     robot_yaml: ${OUTDOOR_DEPLOY_ROOT}/config/soma.yaml
 primitive:
 - name: lynx_camera
+  status: ${OUTDOOR_HARDWARE_STATUS}
   path: ../primitives/primitive-lynx_camera
   config:
     channels:
@@ -17,6 +28,7 @@ primitive:
     frame_timeout_s: 5.0
     sentinel_timeout_s: 0.0  # Camera loss must not block outdoor planning.
 - name: lynx_chassis
+  status: ${OUTDOOR_HARDWARE_STATUS}
   path: ../primitives/primitive-lynx_chassis
   config:
     allow_motion: false
@@ -26,6 +38,7 @@ primitive:
     robot_port: 30004
     run_dir: ${OUTDOOR_DEPLOY_ROOT}/run/chassis
 - name: lynx_lidar
+  status: ${OUTDOOR_HARDWARE_STATUS}
   path: ../primitives/primitive-lynx_lidar
   config:
     managed_driver: true
@@ -36,6 +49,7 @@ primitive:
     lidar_config: ${OUTDOOR_DEPLOY_ROOT}/config/front_lidar.yaml
     run_dir: ${OUTDOOR_DEPLOY_ROOT}/run/lidar
 - name: g70_gnss
+  status: ${OUTDOOR_HARDWARE_STATUS}
   path: ${OUTDOOR_DEPLOY_ROOT}/packages/primitive-g70-gnss-rbnx
   manifest: package_manifest.namespace-driver.yaml
   config:
@@ -48,6 +62,7 @@ primitive:
     ntrip:
       password_env: NTRIP_PASSWORD
 - name: wit_imu
+  status: ${OUTDOOR_HARDWARE_STATUS}
   path: ${OUTDOOR_DEPLOY_ROOT}/packages/primitive-wit-imu-rbnx
   manifest: package_manifest.namespace-driver.yaml
   config:
@@ -56,6 +71,7 @@ primitive:
       baud: 115200
     device_profile: inertial
 - name: orbbec_camera
+  status: ${OUTDOOR_HARDWARE_STATUS}
   path: ${OUTDOOR_DEPLOY_ROOT}/packages/primitive-orbbec-camera
   config:
     camera_name: camera_gemini330
@@ -67,6 +83,7 @@ primitive:
     enable_imu: false
 service:
 - name: localization_outdoor
+  status: ${OUTDOOR_HARDWARE_STATUS}
   path: ${OUTDOOR_DEPLOY_ROOT}/packages/service-localization-outdoor-rbnx
   config:
     origin:
@@ -128,6 +145,7 @@ service:
   path: ${OUTDOOR_DEPLOY_ROOT}/packages/service-map-outdoor-rbnx
   config:
     data_dir: ${OUTDOOR_DEPLOY_ROOT}/data/outdoor_mapping
+    planning_only: !env-bool OUTDOOR_PREVIEW
     gnss_provider_id: g70_gnss
     gait:
       topic: /MOTION_INFO
@@ -138,6 +156,8 @@ service:
   path: ${OUTDOOR_DEPLOY_ROOT}/framework/robonix/system/scene
   manifest: package_manifest.annotate-native.yaml
   config:
+    auto_discover_observations: !env-bool OUTDOOR_DISCOVER
+    outdoor_preview_from_road_start: !env-bool OUTDOOR_PREVIEW
     perception:
       profile: annotate
     web_host: 127.0.0.1
@@ -157,6 +177,7 @@ service:
     observations: []
     camera_provider_id: lynx_camera
 - name: outdoor_execution
+  status: ${OUTDOOR_HARDWARE_STATUS}
   path: ${OUTDOOR_DEPLOY_ROOT}/packages/service-navigation-outdoor-rbnx
   config:
     params_file: ${OUTDOOR_DEPLOY_ROOT}/config/outdoor_nav2.yaml

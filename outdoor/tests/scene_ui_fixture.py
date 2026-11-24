@@ -69,7 +69,7 @@ def fixture():
                 return {'ok':True,**result}
             except (ValueError,KeyError) as error:return {'ok':False,'detail':str(error)}
         map_clients.call=call
-        manifest=yaml.safe_load((ROOT/'robonix_manifest.yaml').read_text())
+        manifest=yaml.safe_load((ROOT/'robonix_manifest.field.yaml').read_text())
         config=next(item for item in manifest['service'] if item['name']=='scene')['config']['outdoor_navigation']
         config.update(run_dir=str(run/'requests'),execution=Wire(),execution_enabled=True)
         config.pop('localization_config_path',None)

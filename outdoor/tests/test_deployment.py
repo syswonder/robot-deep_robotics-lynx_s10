@@ -14,7 +14,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def load(name):
-    return yaml.safe_load((ROOT / name).read_text())
+    class CheckModeLoader(yaml.SafeLoader):
+        pass
+
+    CheckModeLoader.add_constructor(
+        "!env-bool",
+        lambda loader, node: {"OUTDOOR_PREVIEW": False, "OUTDOOR_DISCOVER": True}[loader.construct_scalar(node)],
+    )
+    return yaml.load((ROOT / name).read_text(), Loader=CheckModeLoader)
 
 
 def entries(manifest):
@@ -48,7 +55,20 @@ def test_profiles_isolate_motion_and_share_the_same_dependencies():
     # Every other difference would silently change the meaning of a check-mode trial.
     normalized = copy.deepcopy(field)
     normalized["name"] = check["name"]
+    normalized["env"] = check["env"]
+    for name in ("executor", "pilot"):
+        normalized["system"][name] = check["system"][name]
     n = entries(normalized)
+    for name, item in a.items():
+        if name not in ("outdoor_mapping", "scene"):
+            assert item["status"] == "${OUTDOOR_HARDWARE_STATUS}"
+            n[name]["status"] = item["status"]
+    assert a["scene"]["config"]["outdoor_preview_from_road_start"] is False
+    assert a["outdoor_mapping"]["config"]["planning_only"] is False
+    for name, keys in (("scene", ("outdoor_preview_from_road_start", "auto_discover_observations")),
+                       ("outdoor_mapping", ("planning_only",))):
+        for key in keys:
+            n[name]["config"][key] = a[name]["config"][key]
     for key in ("allow_motion", "allow_gait"):
         n["lynx_chassis"]["config"][key] = False
     n["scene"]["config"]["outdoor_navigation"]["execution_enabled"] = False
