@@ -7,7 +7,7 @@
   {
     "path": "packages/service-navigation-outdoor-rbnx",
     "url": "https://github.com/syswonder/service-navigation-outdoor-rbnx.git",
-    "revision": "3bf8457735ae26e47bc458c4fc3e6746b320b8ac"
+    "revision": "15dd30d35961569b53e13a3856f434e1d45b45a6"
   },
   {
     "path": "packages/service-localization-outdoor-rbnx",
@@ -27,7 +27,7 @@
   {
     "path": "framework/robonix",
     "url": "https://github.com/syswonder/robonix.git",
-    "revision": "777390bb8482538563f5217bbb5812508bf68553"
+    "revision": "2e9cb01fbf81c67a05a35bbe7caf6d9f5a4374a2"
   },
   {
     "path": "packages/primitive-orbbec-camera",

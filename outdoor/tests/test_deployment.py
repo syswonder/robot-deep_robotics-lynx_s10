@@ -3,7 +3,6 @@
 import copy
 import importlib.util
 import json
-import os
 from pathlib import Path
 import subprocess
 
@@ -45,7 +44,8 @@ def test_profiles_isolate_motion_and_share_the_same_dependencies():
     assert (
         "gait_output_topic" not in b["outdoor_execution"]["config"]
     )  # resolved from guarded capability
-    # Every other difference would silently change the meaning of a check-mode trial.
+    # Field stair perception is experimental; check mode remains lidar-only.
+    # Normalize only the declared experiment differences, not arbitrary wiring.
     normalized = copy.deepcopy(field)
     normalized["name"] = check["name"]
     n = entries(normalized)
@@ -56,6 +56,25 @@ def test_profiles_isolate_motion_and_share_the_same_dependencies():
     n["outdoor_execution"]["config"]["policy"]["motion_enabled"] = False
     for key in ("velocity_output_topic", "gait_output_topic"):
         n["outdoor_execution"]["config"][key] = a["outdoor_execution"]["config"][key]
+    field_nav = b["outdoor_execution"]["config"]
+    assert field_nav["terrain"]["enabled"] and field_nav["terrain"]["can_climb_stairs"]
+    assert field_nav["terrain"]["stairs_classes"] == ["stairs"]
+    assert field_nav["semantic_segmentation"]["enabled"]
+    assert field_nav["semantic_segmentation"]["classes"]["53"] == "stairs"
+    assert not field_nav["decision_cycle"]["enabled"]
+    nav = n["outdoor_execution"]["config"]
+    baseline = a["outdoor_execution"]["config"]
+    nav["terrain"] = copy.deepcopy(baseline["terrain"])
+    nav.pop("semantic_segmentation")
+    for key in ("camera_enabled", "camera_geometry_enabled", "camera_max_range_m",
+                "sensor_timeout_s", "navigation_recovery_timeout_s"):
+        if key in baseline["policy"]:
+            nav["policy"][key] = baseline["policy"][key]
+        else:
+            nav["policy"].pop(key, None)
+    for key in ("color_profile", "depth_profile"):
+        assert b["orbbec_camera"]["config"][key] == "640x480x30"
+        n["orbbec_camera"]["config"][key] = a["orbbec_camera"]["config"][key]
     assert normalized == check
     for manifest in (check, field):
         items = entries(manifest)
@@ -87,7 +106,6 @@ def test_profiles_pass_the_actual_service_configuration_validators(tmp_path):
     from outdoor_nav.configuration import validate as navigation_config
     from wit_imu.driver import parse_config as imu_config
 
-    packages = Path(os.environ["OUTDOOR_PACKAGES_ROOT"])
     ground = tmp_path / "ground.local.json"
     ground.write_text('{"ground_z_m": -0.25}')  # Synthetic test calibration, not a machine value.
     for filename in ("robonix_manifest.yaml", "robonix_manifest.field.yaml"):
@@ -100,10 +118,13 @@ def test_profiles_pass_the_actual_service_configuration_validators(tmp_path):
         )
         assert imu_config(items["wit_imu"]["config"])["serial"]["baud"] == 115200
         nav = copy.deepcopy(items["outdoor_execution"]["config"])
-        nav["params_file"] = str(
-            packages / "service-navigation-outdoor-rbnx/config/nav2_params.example.yml"
-        )
+        nav["params_file"] = str(ROOT / "config/outdoor_nav2.yaml")
         nav["ground_height_file"] = str(ground)
+        if nav.get("semantic_segmentation", {}).get("enabled"):
+            # Test configuration validation without downloading model weights.
+            model = tmp_path / "synthetic-model"
+            model.mkdir(exist_ok=True)
+            nav["semantic_segmentation"]["weights"] = str(model)
         navigation_config(nav)
 
 

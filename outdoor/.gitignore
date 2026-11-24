@@ -17,3 +17,7 @@ __pycache__/
 /config/ground.local.json
 
 /bin/
+
+/models/
+/config/secrets.json.*
+/config/gnss.base.yaml.*

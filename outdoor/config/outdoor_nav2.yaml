@@ -44,13 +44,14 @@ controller_server:
       vx_samples: 12
       vy_samples: 1
       vtheta_samples: 24
-      sim_time: 2.0
+      sim_time: 2.5
       linear_granularity: 0.05
       angular_granularity: 0.05
       transform_tolerance: 0.2
       trans_stopped_velocity: 0.03
       xy_goal_tolerance: 0.50
       short_circuit_trajectory_evaluation: true
+      # Keep center-cell obstacle scoring for the next reproducibility test.
       critics: [RotateToGoal, Oscillation, BaseObstacle, GoalAlign, PathAlign, PathDist, GoalDist]
       BaseObstacle.scale: 0.02
       PathAlign.scale: 0.1
@@ -73,7 +74,7 @@ controller_server:
       allow_reversing: false
       max_angular_accel: 0.6
       transform_tolerance: 0.2
-      use_collision_detection: false
+      use_collision_detection: true
       use_cost_regulated_linear_velocity_scaling: false
       use_regulated_linear_velocity_scaling: true
       min_approach_linear_velocity: 0.05

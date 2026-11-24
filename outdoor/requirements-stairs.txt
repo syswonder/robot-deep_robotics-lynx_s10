@@ -1,0 +1,4 @@
+# Use the JetPack-provided torch/torchvision. Do not replace them with PyPI wheels.
+# Transformers 5.x rejects the NVIDIA 2.5.0a0 torch build on this robot.
+transformers==4.46.3
+huggingface-hub==0.36.2
