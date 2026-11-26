@@ -70,17 +70,6 @@ primitive:
       port: /dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0
       baud: 115200
     device_profile: inertial
-- name: orbbec_camera
-  status: ${OUTDOOR_HARDWARE_STATUS}
-  path: ${OUTDOOR_PACKAGES_ROOT}/primitive-orbbec-camera
-  config:
-    camera_name: camera_gemini330
-    camera_model: gemini330_series
-    color_profile: 1280x720x30
-    depth_profile: 1280x720x30
-    depth_registration: true
-    enable_point_cloud: false
-    enable_imu: false
 service:
 - name: localization_outdoor
   status: ${OUTDOOR_HARDWARE_STATUS}
