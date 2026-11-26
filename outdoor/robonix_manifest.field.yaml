@@ -36,7 +36,7 @@ primitive:
     lidar_config: ${OUTDOOR_DEPLOY_ROOT}/config/front_lidar.yaml
     run_dir: ${OUTDOOR_DEPLOY_ROOT}/run/lidar
 - name: g70_gnss
-  path: ${OUTDOOR_DEPLOY_ROOT}/packages/primitive-g70-gnss-rbnx
+  path: ${OUTDOOR_PACKAGES_ROOT}/primitive-g70-gnss-rbnx
   manifest: package_manifest.namespace-driver.yaml
   config:
     driver_config: ${OUTDOOR_DEPLOY_ROOT}/config/gnss.base.yaml
@@ -48,28 +48,16 @@ primitive:
     ntrip:
       password_env: NTRIP_PASSWORD
 - name: wit_imu
-  path: ${OUTDOOR_DEPLOY_ROOT}/packages/primitive-wit-imu-rbnx
+  path: ${OUTDOOR_PACKAGES_ROOT}/primitive-wit-imu-rbnx
   manifest: package_manifest.namespace-driver.yaml
   config:
     serial:
       port: /dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0
       baud: 115200
     device_profile: inertial
-- name: orbbec_camera
-  path: ${OUTDOOR_DEPLOY_ROOT}/packages/primitive-orbbec-camera
-  config:
-    camera_name: camera_gemini330
-    camera_model: gemini330_series
-    # Lower profiles keep the Jetson responsive while the camera feeds the
-    # stair segmentation; 640x480 still covers the 4 m stair ROI.
-    color_profile: 640x480x30
-    depth_profile: 640x480x30
-    depth_registration: true
-    enable_point_cloud: false
-    enable_imu: false
 service:
 - name: localization_outdoor
-  path: ${OUTDOOR_DEPLOY_ROOT}/packages/service-localization-outdoor-rbnx
+  path: ${OUTDOOR_PACKAGES_ROOT}/service-localization-outdoor-rbnx
   config:
     origin:
       latitude: 0.0
@@ -127,7 +115,7 @@ service:
       max_horizontal_2sigma_m: 3.0
       max_yaw_2sigma_deg: 45.0
 - name: outdoor_mapping
-  path: ${OUTDOOR_DEPLOY_ROOT}/packages/service-map-outdoor-rbnx
+  path: ${OUTDOOR_PACKAGES_ROOT}/service-map-outdoor-rbnx
   config:
     data_dir: ${OUTDOOR_DEPLOY_ROOT}/data/outdoor_mapping
     gnss_provider_id: g70_gnss
@@ -137,7 +125,7 @@ service:
       field: data.gait_state.gait
     lifecycle_topic: /robonix/outdoor_map/lifecycle
 - name: scene
-  path: ${OUTDOOR_DEPLOY_ROOT}/framework/robonix/system/scene
+  path: ${ROBONIX_SOURCE_PATH}/system/scene
   manifest: package_manifest.annotate-native.yaml
   config:
     perception:
@@ -167,76 +155,26 @@ service:
       msg_type: OccupancyGrid
     camera_provider_id: lynx_camera
 - name: outdoor_execution
-  path: ${OUTDOOR_DEPLOY_ROOT}/packages/service-navigation-outdoor-rbnx
+  path: ${OUTDOOR_PACKAGES_ROOT}/service-navigation-outdoor-rbnx
   config:
     params_file: ${OUTDOOR_DEPLOY_ROOT}/config/outdoor_nav2.yaml
-    ground_height_file: ${OUTDOOR_DEPLOY_ROOT}/config/ground.local.json
-    terrain:
-      # Recognition-driven stair ascent: the camera + segmentation chain feeds
-      # the terrain state machine; recorded gait sections are not used.
-      enabled: true
-      slope_filter_enabled: false
-      can_climb_stairs: true
-      stairs_classes: [stairs]
-      flat_gait_code: 12290
-      upstairs_gait_code: 12291
-      # Segmentation runs at ~0.4 Hz on this Jetson, so the stair evidence
-      # window is stretched to match the real frame cadence.
-      observation_timeout_s: 5.0
-      confirm_s: 1.5
-      clear_s: 1.5
-      # A 180-degree square-up at 0.15 rad/s needs more than the 20 s default.
-      alignment_speed_rps: 0.25
-      alignment_timeout_s: 45.0
-    decision_cycle:
-      enabled: false # Formal deployment uses the ordinary route executor.
-    semantic_segmentation:
-      enabled: true
-      backend: outdoor_nav.segformer_backend:create_backend
-      weights: ${OUTDOOR_DEPLOY_ROOT}/models/segformer-b0-ade
-      device: "cuda:0"
-      confidence_threshold: 0.55
-      classes:
-        "53": stairs
-        "3": floor
-        "0": wall
-        "1": building
-        "11": sidewalk
-        "13": earth
-        "52": path
     provider_ids:
       cloud: lynx_lidar
       localization: localization_outdoor
       chassis: lynx_chassis
-      imu: wit_imu
-      # lynx_camera also claims primitive/camera/rgb; name the RGBD source.
-      camera: orbbec_camera
     topic_remap:
+      odom: /localization/odom
+      localization: /localization/status
       tf: /outdoor/tf
       tf_static: /tf_static
       chassis: /outdoor/chassis_status
+    global_grid: {origin: [-10.0, -10.0], width: 20.0, height: 20.0, resolution: 0.1, rolling: true}
     gait_switching_enabled: true
     velocity_output_topic: /cmd_vel
     action_wait_s: 120.0
     run_dir: ${OUTDOOR_DEPLOY_ROOT}/run/navigation
     http_port: 19985
     policy:
-      lidar_enabled: true
-      # Stairs only count as actionable inside 2 m, so a distant staircase
-      # down the corridor cannot trigger an alignment that loses its view.
-      camera_max_range_m: 2.0
-      # Lidar-only field profile; RGB/depth preview remains available.
-      # Enabling depth for navigation requires a separate geometry check.
-      camera_enabled: true
-      # Segmentation drives the stairs supervisor; the legacy depth geometry
-      # chain stays off because it was unstable in direct sunlight.
-      camera_geometry_enabled: false
-      camera_frame_confirmed: true
-      camera_frame: camera_gemini330_link
-      # Provisional mount from the indoor plane fit; forward/lateral offsets
-      # still need physical measurement before camera navigation commissioning.
-      camera_mount_xyz_m: [0.0, 0.0, -0.19]
-      camera_mount_rpy_deg: [0.0, 0.0, 0.0]
       motion_enabled: true
       calibrated: true
       antenna_offset_confirmed: true
@@ -247,10 +185,10 @@ service:
       stopped_linear_mps: 0.10
       stopped_angular_rps: 0.06
       stop_hold_s: 1.0
-      navigation_recovery_timeout_s: 30.0
-      # Scheduling jitter under full CPU load must not count as a dead sensor.
-      sensor_timeout_s: 2.0
+      navigation_recovery_timeout_s: 15.0
       fixed_arrival_m: 3.0
       float_arrival_m: 3.0
-      gait_switch_timeout_s: 5.0
+      gait_switch_timeout_s: 10.0
+      gait_boundary_tolerance_m: 0.25
+      sensor_timeout_s: 2.0
     worker_python: ${OUTDOOR_DEPLOY_ROOT}/.venv/bin/python

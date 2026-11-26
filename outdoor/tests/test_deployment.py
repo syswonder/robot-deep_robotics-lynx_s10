@@ -31,73 +31,34 @@ def test_profiles_isolate_motion_and_share_the_same_dependencies():
     assert a["lynx_chassis"]["config"]["allow_motion"] is False
     assert a["lynx_chassis"]["config"]["allow_gait"] is False
     assert a["scene"]["config"]["outdoor_navigation"]["execution_enabled"] is False
-    assert a["outdoor_execution"]["config"]["policy"]["motion_enabled"] is False
-    assert a["outdoor_execution"]["config"]["velocity_output_topic"] != "/cmd_vel"
-    assert (
-        a["outdoor_execution"]["config"]["gait_output_topic"] != "/outdoor/gait_request"
-    )
     assert b["lynx_chassis"]["config"]["allow_motion"] is True
     assert b["lynx_chassis"]["config"]["allow_gait"] is True
     assert b["scene"]["config"]["outdoor_navigation"]["execution_enabled"] is True
-    assert b["outdoor_execution"]["config"]["policy"]["motion_enabled"] is True
-    assert b["outdoor_execution"]["config"]["velocity_output_topic"] == "/cmd_vel"
-    assert (
-        "gait_output_topic" not in b["outdoor_execution"]["config"]
-    )  # resolved from guarded capability
-    # Field stair perception is experimental; check mode remains lidar-only.
-    # Normalize only the declared experiment differences, not arbitrary wiring.
-    normalized = copy.deepcopy(field)
-    normalized["name"] = check["name"]
-    n = entries(normalized)
-    for key in ("allow_motion", "allow_gait"):
-        n["lynx_chassis"]["config"][key] = False
-    n["scene"]["config"]["outdoor_navigation"]["execution_enabled"] = False
-    n["scene"]["config"]["observations"] = []
-    n["outdoor_execution"]["config"]["policy"]["motion_enabled"] = False
-    for key in ("velocity_output_topic", "gait_output_topic"):
-        n["outdoor_execution"]["config"][key] = a["outdoor_execution"]["config"][key]
-    field_nav = b["outdoor_execution"]["config"]
-    assert field_nav["terrain"]["enabled"] and field_nav["terrain"]["can_climb_stairs"]
-    assert field_nav["terrain"]["stairs_classes"] == ["stairs"]
-    assert field_nav["semantic_segmentation"]["enabled"]
-    assert field_nav["semantic_segmentation"]["classes"]["53"] == "stairs"
-    assert not field_nav["decision_cycle"]["enabled"]
-    nav = n["outdoor_execution"]["config"]
-    baseline = a["outdoor_execution"]["config"]
-    nav["terrain"] = copy.deepcopy(baseline["terrain"])
-    nav.pop("semantic_segmentation")
-    for key in ("camera_enabled", "camera_geometry_enabled", "camera_max_range_m",
-                "sensor_timeout_s", "navigation_recovery_timeout_s"):
-        if key in baseline["policy"]:
-            nav["policy"][key] = baseline["policy"][key]
-        else:
-            nav["policy"].pop(key, None)
-    for key in ("color_profile", "depth_profile"):
-        assert b["orbbec_camera"]["config"][key] == "640x480x30"
-        n["orbbec_camera"]["config"][key] = a["orbbec_camera"]["config"][key]
-    assert normalized == check
+    for motion, cfg in ((False, a["outdoor_execution"]["config"]),
+                        (True, b["outdoor_execution"]["config"])):
+        assert cfg["policy"]["motion_enabled"] is motion
+        assert cfg["gait_switching_enabled"] is True
+        assert cfg["policy"]["gait_boundary_tolerance_m"] == .25
+        assert cfg["policy"]["gait_switch_timeout_s"] == 10.
+        assert cfg["policy"]["sensor_timeout_s"] == 2.
+        assert cfg["policy"]["fixed_arrival_m"] == cfg["policy"]["float_arrival_m"] == 3.
+        assert cfg["topic_remap"]["odom"] == "/localization/odom"
+        assert cfg["topic_remap"]["localization"] == "/localization/status"
+        assert cfg["provider_ids"] == {"cloud": "lynx_lidar",
+                                       "localization": "localization_outdoor",
+                                       "chassis": "lynx_chassis"}
+        assert cfg["global_grid"]["rolling"] is True
+        for absent in ("terrain", "decision_cycle", "semantic_segmentation", "ground_height_file"):
+            assert absent not in cfg
+        for absent in ("lidar_enabled", "camera_enabled", "camera_frame"):
+            assert absent not in cfg["policy"]
+        assert cfg["velocity_output_topic"] == ("/cmd_vel" if motion else "/robonix/nomotion/outdoor_cmd_vel")
+    assert "gait_output_topic" not in b["outdoor_execution"]["config"]
+    assert a["outdoor_execution"]["config"]["gait_output_topic"] == "/robonix/nomotion/outdoor_gait"
     for manifest in (check, field):
         items = entries(manifest)
-        assert items["outdoor_execution"]["config"]["provider_ids"] == {
-            "cloud": "lynx_lidar",
-            "localization": "localization_outdoor",
-            "chassis": "lynx_chassis",
-            "imu": "wit_imu",
-            "camera": "orbbec_camera",
-        }
         assert items["localization_outdoor"]["config"]["estimator_mode"] == "eskf"
         assert items["wit_imu"]["config"]["device_profile"] == "inertial"
-        camera = items["lynx_camera"]["config"]
-        assert any(c.get("primary") and c["url"].endswith("/video4")
-                   for c in camera["channels"])
-        scene = items["scene"]["config"]
-        assert scene["camera_provider_id"] == "lynx_camera"
-        assert scene.get("camera_viewer_port") == 8080
-        if scene.get("observations"):
-            assert any(o["kind"] == "rgb" and o["provider_id"] == "lynx_camera"
-                       and o["contract"] == "robonix/primitive/camera/rgb"
-                       for o in scene["observations"])
-        assert items["localization_outdoor"]["config"]["require_map_reference"] is True
         assert "/ODOM" not in json.dumps(manifest)
 
 
@@ -106,25 +67,12 @@ def test_profiles_pass_the_actual_service_configuration_validators(tmp_path):
     from outdoor_nav.configuration import validate as navigation_config
     from wit_imu.driver import parse_config as imu_config
 
-    ground = tmp_path / "ground.local.json"
-    ground.write_text('{"ground_z_m": -0.25}')  # Synthetic test calibration, not a machine value.
     for filename in ("robonix_manifest.yaml", "robonix_manifest.field.yaml"):
         items = entries(load(filename))
-        assert (
-            localization_config(items["localization_outdoor"]["config"])[
-                "estimator_mode"
-            ]
-            == "eskf"
-        )
+        assert localization_config(items["localization_outdoor"]["config"])["estimator_mode"] == "eskf"
         assert imu_config(items["wit_imu"]["config"])["serial"]["baud"] == 115200
         nav = copy.deepcopy(items["outdoor_execution"]["config"])
         nav["params_file"] = str(ROOT / "config/outdoor_nav2.yaml")
-        nav["ground_height_file"] = str(ground)
-        if nav.get("semantic_segmentation", {}).get("enabled"):
-            # Test configuration validation without downloading model weights.
-            model = tmp_path / "synthetic-model"
-            model.mkdir(exist_ok=True)
-            nav["semantic_segmentation"]["weights"] = str(model)
         navigation_config(nav)
 
 

@@ -1,14 +1,25 @@
 # Source scripts/environment.sh before using rbnx.
 manifestVersion: 1
 name: lynx-outdoor-check
+env:
+  ROBONIX_PILOT_SOUL: ${OUTDOOR_DEPLOY_ROOT}/config/preview-soul.md
 system:
   atlas:
     listen: 127.0.0.1:51551
+  executor:
+    listen: 127.0.0.1:51561
+  pilot:
+    status: ${OUTDOOR_PILOT_STATUS}
+    listen: 127.0.0.1:51571
+    vlm:
+      upstream: ${ROBONIX_VLM_UPSTREAM}
+      model: ${ROBONIX_VLM_MODEL}
   soma:
     listen: 127.0.0.1:51591
     robot_yaml: ${OUTDOOR_DEPLOY_ROOT}/config/soma.yaml
 primitive:
 - name: lynx_camera
+  status: ${OUTDOOR_HARDWARE_STATUS}
   path: ../primitives/primitive-lynx_camera
   config:
     channels:
@@ -17,6 +28,7 @@ primitive:
     frame_timeout_s: 5.0
     sentinel_timeout_s: 0.0  # Camera loss must not block outdoor planning.
 - name: lynx_chassis
+  status: ${OUTDOOR_HARDWARE_STATUS}
   path: ../primitives/primitive-lynx_chassis
   config:
     allow_motion: false
@@ -26,6 +38,7 @@ primitive:
     robot_port: 30004
     run_dir: ${OUTDOOR_DEPLOY_ROOT}/run/chassis
 - name: lynx_lidar
+  status: ${OUTDOOR_HARDWARE_STATUS}
   path: ../primitives/primitive-lynx_lidar
   config:
     managed_driver: true
@@ -36,7 +49,8 @@ primitive:
     lidar_config: ${OUTDOOR_DEPLOY_ROOT}/config/front_lidar.yaml
     run_dir: ${OUTDOOR_DEPLOY_ROOT}/run/lidar
 - name: g70_gnss
-  path: ${OUTDOOR_DEPLOY_ROOT}/packages/primitive-g70-gnss-rbnx
+  status: ${OUTDOOR_HARDWARE_STATUS}
+  path: ${OUTDOOR_PACKAGES_ROOT}/primitive-g70-gnss-rbnx
   manifest: package_manifest.namespace-driver.yaml
   config:
     driver_config: ${OUTDOOR_DEPLOY_ROOT}/config/gnss.base.yaml
@@ -48,7 +62,8 @@ primitive:
     ntrip:
       password_env: NTRIP_PASSWORD
 - name: wit_imu
-  path: ${OUTDOOR_DEPLOY_ROOT}/packages/primitive-wit-imu-rbnx
+  status: ${OUTDOOR_HARDWARE_STATUS}
+  path: ${OUTDOOR_PACKAGES_ROOT}/primitive-wit-imu-rbnx
   manifest: package_manifest.namespace-driver.yaml
   config:
     serial:
@@ -56,7 +71,8 @@ primitive:
       baud: 115200
     device_profile: inertial
 - name: orbbec_camera
-  path: ${OUTDOOR_DEPLOY_ROOT}/packages/primitive-orbbec-camera
+  status: ${OUTDOOR_HARDWARE_STATUS}
+  path: ${OUTDOOR_PACKAGES_ROOT}/primitive-orbbec-camera
   config:
     camera_name: camera_gemini330
     camera_model: gemini330_series
@@ -67,7 +83,8 @@ primitive:
     enable_imu: false
 service:
 - name: localization_outdoor
-  path: ${OUTDOOR_DEPLOY_ROOT}/packages/service-localization-outdoor-rbnx
+  status: ${OUTDOOR_HARDWARE_STATUS}
+  path: ${OUTDOOR_PACKAGES_ROOT}/service-localization-outdoor-rbnx
   config:
     origin:
       latitude: 0.0
@@ -125,9 +142,10 @@ service:
       max_horizontal_2sigma_m: 3.0
       max_yaw_2sigma_deg: 45.0
 - name: outdoor_mapping
-  path: ${OUTDOOR_DEPLOY_ROOT}/packages/service-map-outdoor-rbnx
+  path: ${OUTDOOR_PACKAGES_ROOT}/service-map-outdoor-rbnx
   config:
     data_dir: ${OUTDOOR_DEPLOY_ROOT}/data/outdoor_mapping
+    planning_only: false
     gnss_provider_id: g70_gnss
     gait:
       topic: /MOTION_INFO
@@ -135,9 +153,11 @@ service:
       field: data.gait_state.gait
     lifecycle_topic: /robonix/outdoor_map/lifecycle
 - name: scene
-  path: ${OUTDOOR_DEPLOY_ROOT}/framework/robonix/system/scene
+  path: ${ROBONIX_SOURCE_PATH}/system/scene
   manifest: package_manifest.annotate-native.yaml
   config:
+    auto_discover_observations: true
+    outdoor_preview_from_road_start: false
     perception:
       profile: annotate
     web_host: 127.0.0.1
@@ -157,43 +177,28 @@ service:
     observations: []
     camera_provider_id: lynx_camera
 - name: outdoor_execution
-  path: ${OUTDOOR_DEPLOY_ROOT}/packages/service-navigation-outdoor-rbnx
+  status: ${OUTDOOR_HARDWARE_STATUS}
+  path: ${OUTDOOR_PACKAGES_ROOT}/service-navigation-outdoor-rbnx
   config:
     params_file: ${OUTDOOR_DEPLOY_ROOT}/config/outdoor_nav2.yaml
-    ground_height_file: ${OUTDOOR_DEPLOY_ROOT}/config/ground.local.json
-    terrain:
-      enabled: true
-      slope_filter_enabled: false
-      can_climb_stairs: false
-    decision_cycle:
-      enabled: false # Formal deployment uses the ordinary route executor.
     provider_ids:
       cloud: lynx_lidar
       localization: localization_outdoor
       chassis: lynx_chassis
-      imu: wit_imu
-      # lynx_camera also claims primitive/camera/rgb; name the RGBD source.
-      camera: orbbec_camera
     topic_remap:
+      odom: /localization/odom
+      localization: /localization/status
       tf: /outdoor/tf
       tf_static: /tf_static
       chassis: /outdoor/chassis_status
+    global_grid: {origin: [-10.0, -10.0], width: 20.0, height: 20.0, resolution: 0.1, rolling: true}
     gait_switching_enabled: true
     velocity_output_topic: /robonix/nomotion/outdoor_cmd_vel
+    gait_output_topic: /robonix/nomotion/outdoor_gait
     action_wait_s: 120.0
     run_dir: ${OUTDOOR_DEPLOY_ROOT}/run/navigation
     http_port: 19985
     policy:
-      lidar_enabled: true
-      # Lidar-only field profile; RGB/depth preview remains available.
-      # Enabling depth for navigation requires a separate geometry check.
-      camera_enabled: false
-      camera_frame_confirmed: true
-      camera_frame: camera_gemini330_link
-      # Provisional mount from the indoor plane fit; forward/lateral offsets
-      # still need physical measurement before camera navigation commissioning.
-      camera_mount_xyz_m: [0.0, 0.0, -0.19]
-      camera_mount_rpy_deg: [0.0, 0.0, 0.0]
       motion_enabled: false
       calibrated: true
       antenna_offset_confirmed: true
@@ -207,6 +212,7 @@ service:
       navigation_recovery_timeout_s: 15.0
       fixed_arrival_m: 3.0
       float_arrival_m: 3.0
-      gait_switch_timeout_s: 5.0
+      gait_switch_timeout_s: 10.0
+      gait_boundary_tolerance_m: 0.25
+      sensor_timeout_s: 2.0
     worker_python: ${OUTDOOR_DEPLOY_ROOT}/.venv/bin/python
-    gait_output_topic: /robonix/nomotion/outdoor_gait
