@@ -173,6 +173,8 @@ service:
     velocity_output_topic: /cmd_vel
     action_wait_s: 120.0
     run_dir: ${OUTDOOR_DEPLOY_ROOT}/run/navigation
+    record:
+      enabled: true
     http_port: 19985
     policy:
       motion_enabled: true

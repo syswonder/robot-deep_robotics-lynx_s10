@@ -186,6 +186,8 @@ service:
     gait_output_topic: /robonix/nomotion/outdoor_gait
     action_wait_s: 120.0
     run_dir: ${OUTDOOR_DEPLOY_ROOT}/run/navigation
+    record:
+      enabled: true
     http_port: 19985
     policy:
       motion_enabled: false

@@ -93,12 +93,12 @@ def test_prepare_refuses_dirty_dependencies_before_updating_anything(tmp_path):
                 {
                     "path": "packages/missing",
                     "url": "invalid://must-not-be-used",
-                    "revision": "a" * 40,
+                    "branch": "main",
                 },
                 {
                     "path": "packages/edited",
                     "url": "invalid://must-not-be-used",
-                    "revision": "b" * 40,
+                    "branch": "main",
                 },
             ]
         )
@@ -109,15 +109,40 @@ def test_prepare_refuses_dirty_dependencies_before_updating_anything(tmp_path):
     assert (package / "local.txt").read_text() == "keep this edit"
 
 
-def test_enabled_external_packages_are_locked_to_exact_revisions():
+def test_enabled_external_packages_track_branches():
     import re
     sources = json.loads((ROOT / 'sources.json').read_text())
-    pins = {item['path']: item for item in sources}
-    assert len(pins) == len(sources)
-    assert all(re.fullmatch('[a-f0-9]{40}', item['revision']) for item in sources)
-    assert 'packages/primitive-orbbec-camera' in pins
+    tracks = {item['path']: item for item in sources}
+    assert len(tracks) == len(sources)
+    assert all(set(item) == {'path', 'url', 'branch'} for item in sources)
+    assert all(re.fullmatch(r'[\w./-]+', item['branch']) for item in sources)
+    assert 'packages/primitive-orbbec-camera' in tracks
     prefix = '${OUTDOOR_DEPLOY_ROOT}/'
     for filename in ('robonix_manifest.yaml', 'robonix_manifest.field.yaml'):
         for item in entries(load(filename)).values():
             if item['path'].startswith(prefix + 'packages/'):
-                assert item['path'][len(prefix):] in pins
+                assert item['path'][len(prefix):] in tracks
+
+
+def test_prepare_rejects_option_like_branch_names(tmp_path):
+    spec = importlib.util.spec_from_file_location(
+        "prepare_outdoor", ROOT / "scripts/prepare.py"
+    )
+    prepare = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(prepare)
+    package = tmp_path / "packages/clean"
+    package.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(package)], check=True)
+    (tmp_path / "sources.json").write_text(
+        json.dumps(
+            [
+                {
+                    "path": "packages/clean",
+                    "url": "invalid://must-not-be-used",
+                    "branch": "--upload-pack=evil",
+                }
+            ]
+        )
+    )
+    with pytest.raises(ValueError, match="Invalid branch"):
+        prepare.prepare(tmp_path)
